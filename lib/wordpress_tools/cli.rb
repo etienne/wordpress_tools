@@ -125,5 +125,34 @@ module WordPressTools
         success "Plugin #{plugin_name} was successfully installed, please enable it from admin backend."
       end
     end
+
+    desc "remove [PLUGIN_NAME]", "remove the specified plugin  ( you must use plugin slug, not real name ). If the plugin folder name is different from the plugin slug ( usually doesn't appen this ) this command does not perform any action."
+    method_option :wp_root, :aliases => "-w", :desc => "Specify the WordPress root in which remove the plugin ( no trailing slash ). If not specified the gem assume that you ALREADY ARE in a WordPress root folder."
+    def remove(plugin_name = nil)
+      if not plugin_name
+        error "You must specify a plugin name"
+        return false
+      end
+
+      if options[:wp_root]
+        dir_name = "#{options[:wp_root]}/wp-content/plugins/#{plugin_name}"
+      else
+        dir_name = "wp-content/plugins/#{plugin_name}"
+      end
+
+      if File.directory?(dir_name)
+        if not FileUtils.rm_rf dir_name
+          error "Unable to delete folder #{dir_name}"
+          return false
+        end
+
+        success "Plugin #{plugin_name} was successfully removed from WordPress."
+
+      else
+        warning "Was impossible to find the plugin folder #{plugin_name}, maybe is named differently?"
+        return false
+      end
+
+    end
   end
 end

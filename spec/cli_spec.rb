@@ -124,6 +124,47 @@ describe WordPressTools::CLI do
     end
 
   end
+
+  context "#remove" do
+
+    before :each do
+      WordPressTools::CLI.start ['new']
+      WordPressTools::CLI.start ['install', 'wordless', '-w', 'wordpress']
+    end
+
+    context "with no arguments" do
+      it "should return false" do
+        WordPressTools::CLI.start(['remove']).should be_false
+      end
+    end
+
+    context "with one argument" do
+      it "should return false if plugin directory does not exists" do
+        Dir.chdir('wordpress')
+        WordPressTools::CLI.start(['remove', 'cantfindplugin']).should be_false
+        Dir.chdir('..')
+      end
+
+      it "should remove the plugin folder" do
+        Dir.chdir('wordpress')
+        WordPressTools::CLI.start ['remove', 'wordless']
+        Dir.chdir('..')
+        File.directory?('wordpress/wp-content/plugins/wordless').should be_false
+      end
+    end
+
+    context "with --wp-root" do
+      it "should return false if plugin directory does not exists" do
+        WordPressTools::CLI.start(['remove', 'cantfindplugin', '-w', 'wordpress']).should be_false
+      end
+
+      it "sould remove the plugin folder" do
+        WordPressTools::CLI.start ['remove', 'wordless', '-w', 'wordpress']
+        File.directory?('wordpress/wp-content/plugins/wordless').should be_false
+      end
+    end
+
+  end
   
   after :each do
     Dir.chdir(@original_wd)
