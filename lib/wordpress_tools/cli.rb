@@ -1,4 +1,5 @@
 require 'thor'
+require 'php_serialize'
 # require 'thor/shell/basic'
 require 'net/http'
 require 'rbconfig'
@@ -60,6 +61,98 @@ module WordPressTools
       else
         warning "Didn't initialize git repository because git isn't installed."
       end
+    end
+
+    desc "install [PLUGIN_NAME]", "download the latest stable version of the specified plugin ( you must use plugin slug, not real name )"
+    method_option :wp_root, :aliases => "-w", :desc => "Specify the WordPress root in which install the plugin ( no trailing slash ). If not specified the gem assume that you ALREADY ARE in a WordPress root folder."
+    method_option :version, :aliases => "-v", :desc => "Specify the version of the plugin you want to install"
+    def install(plugin_name = nil)
+      if not plugin_name
+        error "You must specify a plugin name. Exiting."
+        return false 
+      end
+
+      if options[:version]
+        if options[:version] == 'version'
+          warning "You haven''t specified any version"
+          return false
+        end
+
+        download_url = "http://downloads.wordpress.org/plugin/#{plugin_name}.#{options[:version]}.zip"
+
+        begin
+          url = URI.parse(download_url)
+          req = Net::HTTP.new(url.host, url.port)
+          res = req.request_head(url.path)
+
+          # Check return value and raise exception if is not 200
+          res.value()
+        rescue Net::HTTPServerException => e
+          error "The #{options[:version]} version of the #{plugin_name} does not seem to exists"
+          return false
+        end
+
+      end
+
+      if not download_url
+        serialized_api_return = Net::HTTP.get('api.wordpress.org', "/plugins/info/1.0/#{plugin_name}")
+        api_return = PHP.unserialize(serialized_api_return)
+        download_url = api_return.download_link
+      end
+
+      downloaded_file = Tempfile.new("#{plugin_name}")
+      begin
+        puts "Downloading Plugin #{plugin_name}..."
+
+        unless download(download_url, downloaded_file.path)
+          error "Couldn't download plugin #{plugin_name}."
+          return
+        end
+        
+        if options[:wp_root]
+          dir_name = "#{options[:wp_root]}/wp-content/plugins"
+        else
+          dir_name = "wp-content/plugins"
+        end
+        unless unzip(downloaded_file.path, "#{dir_name}")
+          error "Couldn't unzip WordPress."
+          return
+        end
+        
+      ensure
+        downloaded_file.close
+        downloaded_file.unlink
+        success "Plugin #{plugin_name} was successfully installed, please enable it from admin backend."
+      end
+    end
+
+    desc "remove [PLUGIN_NAME]", "remove the specified plugin  ( you must use plugin slug, not real name ). If the plugin folder name is different from the plugin slug ( usually doesn't appen this ) this command does not perform any action."
+    method_option :wp_root, :aliases => "-w", :desc => "Specify the WordPress root in which remove the plugin ( no trailing slash ). If not specified the gem assume that you ALREADY ARE in a WordPress root folder."
+    def remove(plugin_name = nil)
+      if not plugin_name
+        error "You must specify a plugin name"
+        return false
+      end
+
+      if options[:wp_root]
+        dir_name = "#{options[:wp_root]}/wp-content/plugins/#{plugin_name}"
+      else
+        dir_name = "wp-content/plugins/#{plugin_name}"
+      end
+
+      if File.directory?(dir_name)
+        if not FileUtils.rm_rf dir_name
+          error "Unable to delete folder #{dir_name}"
+          return false
+        end
+
+        success "Plugin #{plugin_name} was successfully removed from WordPress."
+
+      else
+        warning "Was impossible to find the plugin folder #{plugin_name}, maybe is named differently?"
+        return false
+      end
+
     end
   end
 end
